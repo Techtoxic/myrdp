@@ -7,27 +7,6 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: Remove Old Tailscale Device
-        run: |
-          $headers = @{
-            "Authorization" = "Bearer ${{ secrets.TAILSCALE_API_KEY }}"
-            "Content-Type"  = "application/json"
-          }
-
-          $devices = Invoke-RestMethod `
-            -Uri "https://api.tailscale.com/api/v2/tailnet/${{ secrets.TAILSCALE_TAILNET }}/devices" `
-            -Headers $headers
-
-          $old = $devices.devices | Where-Object { $_.hostname -eq "gh-runner-persistent" }
-          foreach ($device in $old) {
-            Write-Host "Removing old device: $($device.id)"
-            Invoke-RestMethod `
-              -Uri "https://api.tailscale.com/api/v2/device/$($device.id)" `
-              -Method DELETE `
-              -Headers $headers
-          }
-          Start-Sleep -Seconds 3
-
       - name: Configure Core RDP Settings
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
@@ -85,16 +64,14 @@ jobs:
 
       - name: Establish Tailscale Connection
         run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
-            --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} `
-            --hostname=gh-runner-persistent `
-            --reset
+          # This will print a login URL — open it in your browser to authenticate
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --hostname=gh-runner-persistent
 
           $tsIP = $null
           $retries = 0
-          while (-not $tsIP -and $retries -lt 10) {
+          while (-not $tsIP -and $retries -lt 30) {
               $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-              Start-Sleep -Seconds 5
+              Start-Sleep -Seconds 10
               $retries++
           }
 
